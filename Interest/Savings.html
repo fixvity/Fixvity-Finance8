@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Savings Goal Calculator</title>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<style>
+:root{
+  --bg:#f4f7fb;
+  --card:#ffffff;
+  --primary:#2563eb;
+  --success:#16a34a;
+  --text:#0f172a;
+  --muted:#64748b;
+  --border:#e5e7eb;
+  --radius:18px;
+  --shadow:0 20px 40px rgba(0,0,0,.08);
+}
+*{box-sizing:border-box}
+body{
+  margin:0;
+  font-family:Inter,system-ui,Arial;
+  background:var(--bg);
+  color:var(--text);
+}
+.container{
+  max-width:1200px;
+  margin:auto;
+  padding:18px;
+}
+h1{
+  text-align:center;
+  color:var(--primary);
+  margin-bottom:24px;
+}
+.grid{
+  display:grid;
+  grid-template-columns:1fr 1.4fr;
+  gap:24px;
+}
+.card{
+  background:var(--card);
+  border-radius:var(--radius);
+  box-shadow:var(--shadow);
+  padding:22px;
+}
+label{
+  display:block;
+  margin-top:14px;
+  font-size:14px;
+}
+input,select{
+  width:100%;
+  padding:12px;
+  margin-top:6px;
+  border:1px solid var(--border);
+  border-radius:10px;
+  font-size:15px;
+}
+button{
+  width:100%;
+  margin-top:16px;
+  padding:15px;
+  font-size:16px;
+  border:none;
+  border-radius:14px;
+  cursor:pointer;
+}
+.primary{background:var(--primary);color:#fff}
+.secondary{
+  background:#eef2ff;
+  color:var(--primary);
+  border:1px solid #c7d2fe;
+}
+.summary{
+  background:#ecfdf5;
+  border-left:6px solid var(--success);
+  padding:16px;
+  border-radius:14px;
+  margin-bottom:16px;
+}
+.stats{
+  display:grid;
+  grid-template-columns:repeat(3,1fr);
+  gap:14px;
+}
+.stat{
+  background:#f8fafc;
+  padding:14px;
+  border-radius:12px;
+  text-align:center;
+}
+.stat .value{
+  font-size:22px;
+  font-weight:700;
+  color:var(--primary);
+}
+.stat .label{
+  font-size:13px;
+  color:var(--muted);
+}
+.note{
+  font-size:13px;
+  color:var(--muted);
+  margin-top:8px;
+}
+canvas{margin-top:24px}
+@media(max-width:900px){
+  .grid{grid-template-columns:1fr}
+  .stats{grid-template-columns:1fr}
+}
+</style>
+</head>
+
+<body>
+<div class="container">
+<h1>Savings Goal Calculator</h1>
+
+<div class="grid">
+
+<!-- INPUT -->
+<div class="card">
+
+<label>Savings Goal Amount</label>
+<input id="goal" value="50000">
+
+<label>Current Savings</label>
+<input id="current" value="5000">
+
+<label>Time to Reach Goal (Years)</label>
+<input id="years" value="5">
+
+<label>Expected Annual Interest (%) <span style="color:#64748b">(optional)</span></label>
+<input id="rate" value="4">
+
+<label>Currency</label>
+<select id="currency">
+  <option value="$">USD ($)</option>
+  <option value="€">EUR (€)</option>
+  <option value="£">GBP (£)</option>
+  <option value="₹">INR (₹)</option>
+  <option value="C$">CAD (C$)</option>
+  <option value="A$">AUD (A$)</option>
+</select>
+
+<button class="primary" onclick="calculate()">Calculate</button>
+<button class="secondary" onclick="clearForm()">Clear</button>
+<button class="secondary" onclick="downloadCSV()">Download CSV</button>
+
+</div>
+
+<!-- OUTPUT -->
+<div class="card">
+
+<div class="summary">
+<strong>Your monthly savings plan.</strong>
+<div class="note">
+This shows how much you need to save each month to reach your goal on time.
+</div>
+</div>
+
+<div class="stats">
+  <div class="stat">
+    <div class="value" id="monthly">—</div>
+    <div class="label">Monthly Savings Needed</div>
+  </div>
+  <div class="stat">
+    <div class="value" id="total">—</div>
+    <div class="label">Total Saved</div>
+  </div>
+  <div class="stat">
+    <div class="value" id="interest">—</div>
+    <div class="label">Interest Earned</div>
+  </div>
+</div>
+
+<canvas id="chart"></canvas>
+
+</div>
+
+</div>
+</div>
+
+<script>
+let chart;
+
+function fmt(v){
+  let sym = currency.value;
+  return sym + Number(v).toLocaleString(undefined,{maximumFractionDigits:0});
+}
+
+function calculate(){
+  let goalAmt = +goal.value;
+  let currentAmt = +current.value;
+  let yearsVal = +years.value;
+  let r = (+rate.value || 0) / 100;
+  let months = yearsVal * 12;
+
+  let balance = currentAmt;
+  let monthlySave;
+  let labels = [];
+  let data = [];
+
+  if(r === 0){
+    monthlySave = (goalAmt - currentAmt) / months;
+  } else {
+    let mRate = r / 12;
+    monthlySave = (goalAmt - currentAmt * Math.pow(1+mRate,months)) /
+      ((Math.pow(1+mRate,months)-1)/mRate);
+  }
+
+  for(let i=1;i<=months;i++){
+    balance = balance * (1 + r/12) + monthlySave;
+    labels.push("Month " + i);
+    data.push(balance);
+  }
+
+  monthly.innerHTML = fmt(monthlySave);
+  total.innerHTML = fmt(monthlySave * months + currentAmt);
+  interest.innerHTML = fmt(balance - (monthlySave * months + currentAmt));
+
+  if(chart) chart.destroy();
+  chart = new Chart(document.getElementById("chart"),{
+    type:"line",
+    data:{
+      labels,
+      datasets:[{
+        label:"Savings Growth",
+        data,
+        borderWidth:2
+      }]
+    }
+  });
+}
+
+function clearForm(){
+  document.querySelectorAll("input").forEach(i=>i.value="");
+  monthly.innerHTML="—";
+  total.innerHTML="—";
+  interest.innerHTML="—";
+  if(chart) chart.destroy();
+}
+
+function downloadCSV(){
+  const rows=[
+    ["Field","Value"],
+    ["Savings Goal",goal.value],
+    ["Current Savings",current.value],
+    ["Years",years.value],
+    ["Interest Rate %",rate.value],
+    ["Monthly Savings Needed",monthly.innerText],
+    ["Total Saved",total.innerText],
+    ["Interest Earned",interest.innerText]
+  ];
+  let csv=rows.map(r=>r.join(",")).join("\n");
+  let blob=new Blob([csv],{type:"text/csv"});
+  let url=URL.createObjectURL(blob);
+  let a=document.createElement("a");
+  a.href=url;
+  a.download="savings-goal-calculation.csv";
+  a.click();
+  URL.revokeObjectURL(url);
+}
+</script>
+
+</body>
+</html>
